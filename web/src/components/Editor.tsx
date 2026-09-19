@@ -17,6 +17,7 @@ import { saltSchema } from '../pageLink';
 import IconPicker from './IconPicker';
 import { PageIcon } from '../pageIcon';
 import { BlockContext } from '../blockContext';
+import { exitsDown, exitsStart, focusKey, navItem, nothingBefore, useNavRegion } from '../nav';
 import CollectionView from './CollectionView';
 import { HistoryModal } from './PageHistory';
 import CommentsPanel, {
@@ -480,6 +481,42 @@ function PageHeader({
   const pendingMeta = useRef<{ title?: string; icon?: string; cover?: string; tags?: string[]; description?: string }>({});
   const bodyRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+
+  // The document as one region of two items, its title and its text — rendered
+  // by two sibling components that share no state, which is exactly why this
+  // belongs to nav.ts: it moves focus by document order and needs neither of
+  // them to know about the other.
+  //
+  // whileTyping, because both items ARE text surfaces and the arrows would
+  // otherwise never fire here. canLeave is what makes that survivable: the
+  // keystroke goes back to the browser unless the caret sits at the very edge
+  // it is trying to cross.
+  useNavRegion({
+    id: 'content',
+    ref: bodyRef,
+    scope: 'editor',
+    prev: 'sidebar.tree',
+    whileTyping: true,
+    canLeave: (el, dir) => {
+      if (el === titleRef.current) {
+        const ta = titleRef.current;
+        const s = { start: ta.selectionStart, end: ta.selectionEnd, length: ta.value.length };
+        if (dir === 'down') return exitsDown(s);
+        // ← at the start of the title is how you get back to the sidebar,
+        // without a mode or an Escape that would fight the editor's menus.
+        if (dir === 'left') return exitsStart(s);
+        return false;
+      }
+      if (el.dataset.navKey === 'body') {
+        const surface = el.querySelector('[contenteditable="true"]');
+        // Up and left leave by the same edge, the top of the text. Asking the
+        // selection rather than the block model keeps this true inside tables,
+        // columns and nested lists.
+        return !!surface && (dir === 'up' || dir === 'left') && nothingBefore(surface);
+      }
+      return false;
+    },
+  });
 
   // Grow the title to fit its text (any length wraps to as many lines as needed,
   // like Notion) — on every edit and whenever the page (and thus title) changes.
@@ -1034,6 +1071,7 @@ function PageHeader({
       <div className={'page-head' + (cover ? ' with-cover' : '') + (page.type === 'collection' ? ' page-head--db' : '')}>
         <textarea
           ref={titleRef}
+          {...navItem('title', { keepTabOrder: true })}
           className="page-title"
           value={title}
           placeholder={t('Untitled')}
@@ -1047,7 +1085,9 @@ function PageHeader({
             // (it jumps into the body instead of breaking the title).
             if (e.key === 'Enter') {
               e.preventDefault();
-              bodyRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
+              // The region knows how to focus its own items, including the one
+              // that wraps a ProseMirror rather than being an input.
+              focusKey('content', 'body');
             }
           }}
         />
@@ -1721,7 +1761,7 @@ function BlockContent({
   }, [dropping]);
 
   return (
-    <div className="editor-scroll" ref={scrollRef}>
+    <div className="editor-scroll" ref={scrollRef} {...navItem('body', { keepTabOrder: true })}>
       {dropping && (
         <div className="drop-hint" aria-hidden>
           <FilePlus2 size={18} />

@@ -25,6 +25,7 @@ import Logo from './Logo';
 import ThemeSwitch, { type ThemePref } from './ThemeSwitch';
 import { applyPrefs, plural, t } from './i18n';
 import { useShortcut } from './keys';
+import { focusKey, useNavEntry } from './nav';
 import ShortcutSheet from './components/ShortcutSheet';
 import { guardDrops } from './dropFiles';
 
@@ -427,6 +428,18 @@ export default function App() {
     },
   });
 
+  // The arrows, from outside every region: the regions bind them only once you
+  // are already in one, so without this the keyboard cannot get in at all
+  // without the mouse. The wording lives here, not in nav.ts, because it names
+  // THESE two regions and check-i18n wants a literal t('…') at the call site.
+  useNavEntry({
+    labels: {
+      group: () => t('Navigation'),
+      prev: () => t('Focus the sidebar'),
+      next: () => t('Focus the page'),
+    },
+  });
+
   // A file dropped anywhere the application does not handle itself would be
   // NAVIGATED TO by the browser — the whole app replaced by a PDF viewer, with
   // whatever was open gone. Missing a drop is a shrug; losing the page for
@@ -737,6 +750,10 @@ export default function App() {
       const p = await api.createPage(parentId, '', type, undefined, parentId ? undefined : currentWs);
       setPages((prev) => (prev ? [...prev, p] : [p]));
       navigate(p.id);
+      // Land in the title: a new page is created to be named, and from ⌥N there
+      // was no pointer involved to leave anywhere useful. Across frames rather
+      // than immediately — the editor mounts on a later render (see focusKey).
+      focusKey('content', 'title', 30);
     },
     [navigate, currentWs],
   );

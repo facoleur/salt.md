@@ -20,6 +20,8 @@ import BlueprintLibrary from './BlueprintLibrary';
 import WorkspaceSettings from './WorkspaceSettings';
 import StrandedWorkspaces from './StrandedWorkspaces';
 import { useExclusiveModal, useMenuDismiss } from '../modal';
+import { chordFor, useShortcut } from '../keys';
+import { focusRegion, focusedKey, navItem, useNavRegion, withFocusSurvival } from '../nav';
 import { Sun, Moon, Search, Library, Plus, Table2, FileText, Trash2, LayoutTemplate, Tag, ChevronRight, ChevronDown, Users, Check, Download, Upload, Image, PanelLeftClose, PanelLeftOpen, Pencil, Star, ShieldAlert, ScrollText, Paperclip, SquareArrowOutUpRight, Copy, CornerUpRight, CornerLeftUp, Undo2, X, MoreHorizontal, Settings2 } from 'lucide-react';
 import { AgentDot } from './AgentBadge';
 import { tagColorClass } from '../tags';
@@ -45,7 +47,9 @@ interface Props {
   onNavigate: (id: string) => void;
   onOpenInNewTab: (id: string) => void;
   onCreate: (parentId: string | null, type?: 'doc' | 'collection') => void;
-  onTrash: (id: string) => void;
+  // Promise-aware: the keyboard path (⌘⌫) has to know when the page is actually
+  // gone before it can hand the focus to the next row.
+  onTrash: (id: string) => void | Promise<void>;
   onDuplicate: (id: string) => void;
   onRestore: (id: string) => void;
   onDeleteForever: (id: string) => void;
@@ -198,6 +202,8 @@ function DbRows({
             <div
               className="tree-db-row"
               style={pad}
+              {...navItem(r.id)}
+              data-expanded={kids.length > 0 ? (isOpen ? 'true' : 'false') : undefined}
               onClick={() => ctx.onNavigate(r.id)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -567,7 +573,10 @@ function PageMenu({
                   ctx.onTrash(id);
                 }}
               >
+                {/* Read from the registry rather than typed in here, so the
+                    menu cannot go on advertising a chord that has moved. */}
                 <Trash2 size={16} /> {t('Move to trash')}
+                <kbd className="menu-chord">{chordFor('page.trash')}</kbd>
               </button>
     </div>
   );
@@ -617,6 +626,14 @@ function TreeItem({
           (dt === 'after' ? ' drop-after' : '')
         }
         style={{ paddingLeft: 6 + depth * 14 }}
+        // A step for the arrow keys, and an element a keyboard can reach at
+        // all: these rows were divs with an onClick.
+        {...navItem(p.id)}
+        // Plain DOM state rather than aria-expanded: a real treeitem has to be
+        // owned by a role="tree" through a chain of role="group"s, and the
+        // sidebar's sections are not that chain. Claiming the role without the
+        // structure describes the tree wrongly, which is worse than not at all.
+        data-expanded={hasExpand ? (isExpanded ? 'true' : 'false') : undefined}
         draggable
         onDragStart={(e) => ctx.dragStart(p.id, e)}
         onDragOver={(e) => ctx.dragOver(p, e)}
@@ -908,6 +925,67 @@ export default function Sidebar({
     }
   };
 
+  // The tree is the region; the rows carry navItem() and nothing else. See
+  // nav.ts for why the DOM, not a selected-index, is the state here.
+  const asideRef = useRef<HTMLElement>(null);
+  useNavRegion({
+    id: 'sidebar.tree',
+    ref: asideRef,
+    scope: 'view',
+    next: 'content',
+    // Enter opens the page AND follows it into the document: reaching a page
+    // with the keyboard is almost always the first half of reading it.
+    onActivate: (_el, id) => {
+      onNavigate(id);
+      focusRegion('content');
+    },
+    // → unfolds a closed row and only leaves the tree when there is nothing
+    // left to unfold (the treeview convention), ← folds. The fold is read off
+    // the row: the attribute is already the truth.
+    onExpand: (el, id) => {
+      if (el.dataset.expanded !== 'false') return false;
+      toggleExpand(id);
+      return true;
+    },
+    onCollapse: (el, id) => {
+      if (el.dataset.expanded !== 'true') return false;
+      toggleExpand(id);
+      return true;
+    },
+    labels: {
+      group: () => t('Navigation'),
+      next: () => t('Next item'),
+      prev: () => t('Previous item'),
+      activate: () => t('Open'),
+      expand: () => t('Expand'),
+      collapse: () => t('Collapse'),
+    },
+  });
+
+  // ⌘⌫ on the focused row. Deliberately NOT whileTyping: in a text field that
+  // chord means "delete to the start of the line", and losing a page to it is
+  // not a trade anyone would accept — so from inside a document the page's ⋯
+  // menu is the way, and it shows this chord next to the entry.
+  //
+  // No confirmation either: trashing is reversible, and a dialog on a reversible
+  // act only teaches people to confirm without reading.
+  useShortcut({
+    id: 'page.trash',
+    keys: ['mod+backspace'],
+    scope: 'view',
+    when: () => !!focusedKey('sidebar.tree'),
+    label: () => t('Move to trash'),
+    group: () => t('Page'),
+    run: () => {
+      const id = focusedKey('sidebar.tree');
+      if (!id) return false;
+      void withFocusSurvival('sidebar.tree', async () => {
+        await onTrash(id);
+        toast(t('Moved to trash'));
+      });
+    },
+  });
+
   const ctx: TreeCtx = {
     childrenMap,
     mixed,
@@ -1134,7 +1212,7 @@ export default function Sidebar({
   };
 
   return (
-    <aside className={'sidebar' + (open ? ' open' : '')}>
+    <aside className={'sidebar' + (open ? ' open' : '')} ref={asideRef}>
       <div className="sidebar-header">
         <div className="ws-switcher" ref={wsMenuRef}>
           <button className="ws-btn" onClick={() => setWsMenuOpen((o) => !o)}>
@@ -1288,6 +1366,7 @@ export default function Sidebar({
               key={p.id}
               className={'tree-item' + (p.id === currentId ? ' active' : '')}
               style={{ paddingLeft: 6 }}
+              {...navItem(p.id)}
               onClick={() => onNavigate(p.id)}
             >
               <span className="chevron spacer" />
