@@ -424,6 +424,23 @@ button {
   flex: none;
 }
 
+/* A shortcut shown next to the action it performs. Pushed to the right edge and
+   quiet: it is a reminder for the next time, not a second label competing with
+   the first. Empty when the action is not bound here, and an empty <kbd> must
+   take no room — hence the :empty rule. */
+.menu-chord {
+  margin-left: auto;
+  padding-left: 12px;
+  font-family: inherit;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.menu-chord:empty {
+  display: none;
+}
+
 /* ---- Page tags (Welle 25/28) ---- */
 .page-tags {
   display: flex;
@@ -3142,6 +3159,19 @@ body.is-col-resizing {
   .calendar-event {
     font-size: 10.5px;
   }
+}
+
+/* Keyboard navigation (nav.ts): the focused row.
+   An inset outline rather than the offset one below — a row is as wide as the
+   sidebar, so a ring drawn 2px OUTSIDE it is clipped on both sides and reads as
+   two vertical bars. `:focus-visible`, not `:focus`: these rows carry a
+   tabindex now, so a plain click focuses them too, and nobody wants a ring
+   round something they just clicked. */
+
+.tree-item:focus-visible,
+.tree-db-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 /* Accessibility: visible keyboard focus (many controls set outline:none) */
