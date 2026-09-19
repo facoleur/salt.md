@@ -24,6 +24,8 @@ import PullToRefresh from './components/PullToRefresh';
 import Logo from './Logo';
 import ThemeSwitch, { type ThemePref } from './ThemeSwitch';
 import { applyPrefs, plural, t } from './i18n';
+import { useShortcut } from './keys';
+import ShortcutSheet from './components/ShortcutSheet';
 import { guardDrops } from './dropFiles';
 
 /** Injected by the build; false everywhere except the website's framed demo. */
@@ -147,6 +149,7 @@ export default function App() {
     }
   }, [openTabs]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [indexOpen, setIndexOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Desktop-only: collapse the sidebar entirely (mobile uses the drawer). The
@@ -373,28 +376,56 @@ export default function App() {
     };
   }, []);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setSearchOpen((v) => !v);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  // Both mod+K and ctrl+K: ⌃K has always worked on a Mac here, and taking it
+  // away from a hand that has learnt it would be a regression dressed up as a
+  // cleanup.
+  useShortcut({
+    id: 'search.open',
+    keys: ['mod+k', 'ctrl+k'],
+    // Has to work mid-sentence: looking something up is what interrupts it.
+    whileTyping: true,
+    label: () => t('Search'),
+    group: () => t('General'),
+    run: () => setSearchOpen((v) => !v),
+  });
+
+  // `?`, and deliberately WITHOUT whileTyping: a question mark is a character
+  // before it is a shortcut.
+  //
+  // Three spellings, because punctuation is the one case where neither e.key nor
+  // e.code suffices. '?' sits on a different physical key per layout: Shift+/ on
+  // QWERTY, Shift+, on AZERTY, Shift+ß on QWERTZ. // i18n-ok: naming a German
+  // keycap is the point of the line
+  //
+  // So e.code cannot name the key, while e.key reports the composed character
+  // only when the browser composed one — which a synthetic keypress may not.
+  useShortcut({
+    id: 'help.shortcuts',
+    keys: ['shift+?', '?', 'shift+/'],
+    label: () => t('Keyboard shortcuts'),
+    group: () => t('General'),
+    run: () => setHelpOpen((v) => !v),
+  });
 
   // ⌥N = new note (⌘N is reserved by browsers and can't be intercepted).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.altKey && !e.metaKey && !e.ctrlKey && e.code === 'KeyN') {
-        e.preventDefault();
-        void createPageRef.current?.(null);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  //
+  // whileTyping, because the moment you want a new note is almost always
+  // mid-sentence in the one you are writing. What makes that safe is testing
+  // what the keystroke PRODUCES rather than where the caret is: on a US Mac
+  // layout ⌥N is the DEAD KEY for ˜, so creating a note and typing ñ are the
+  // same chord. 'Dead' is what such a key reports; a single character that is
+  // not the letter itself catches the layouts that compose something else.
+  useShortcut({
+    id: 'page.new',
+    keys: ['alt+n'],
+    whileTyping: true,
+    label: () => t('New note'),
+    group: () => t('General'),
+    run: (e) => {
+      if (e.key === 'Dead' || (e.key.length === 1 && e.key.toLowerCase() !== 'n')) return false;
+      void createPageRef.current?.(null);
+    },
+  });
 
   // A file dropped anywhere the application does not handle itself would be
   // NAVIGATED TO by the browser — the whole app replaced by a PDF viewer, with
@@ -622,24 +653,34 @@ export default function App() {
     }
   }, []);
 
-  // Ctrl+Alt+←/→ cycles open tabs. metaKey is intentionally excluded: Cmd+Alt+←/→
-  // is the macOS browser tab-switch shortcut. Ignored while typing.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey && !e.metaKey && e.altKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
-        const el = document.activeElement as HTMLElement | null;
-        if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
-        const tabs = tabsRef.current;
-        if (tabs.length < 2) return;
-        e.preventDefault();
-        const i = activeRef.current ? tabs.indexOf(activeRef.current) : -1;
-        const d = e.key === 'ArrowRight' ? 1 : -1;
-        navigate(tabs[(i + d + tabs.length) % tabs.length]);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [navigate]);
+  // Ctrl+Alt+←/→ cycles open tabs. `ctrl` literally rather than `mod`: on macOS
+  // ⌘⌥←/→ is the browser's own tab switch and has to stay the browser's.
+  const cycleTab = useCallback(
+    (d: 1 | -1) => {
+      const tabs = tabsRef.current;
+      // Nothing to cycle through: let the keystroke go where it was headed.
+      if (tabs.length < 2) return false;
+      const i = activeRef.current ? tabs.indexOf(activeRef.current) : -1;
+      navigate(tabs[(i + d + tabs.length) % tabs.length]);
+    },
+    [navigate],
+  );
+
+  useShortcut({
+    id: 'tabs.next',
+    keys: ['ctrl+alt+arrowright'],
+    label: () => t('Next tab'),
+    group: () => t('Tabs'),
+    run: () => cycleTab(1),
+  });
+
+  useShortcut({
+    id: 'tabs.prev',
+    keys: ['ctrl+alt+arrowleft'],
+    label: () => t('Previous tab'),
+    group: () => t('Tabs'),
+    run: () => cycleTab(-1),
+  });
 
   // Pick a landing page when nothing is selected, and bounce away from a page
   // that was trashed. IMPORTANT: a selected id that is simply absent from the
@@ -1101,6 +1142,7 @@ export default function App() {
           </div>
         )}
       </main>
+      {helpOpen && <ShortcutSheet onClose={() => setHelpOpen(false)} />}
       {searchOpen && (
         <SearchModal
           recent={(() => {
