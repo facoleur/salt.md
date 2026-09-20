@@ -367,9 +367,11 @@ export default function CollectionView({ collectionId, pages, tagColors, onNavig
   };
 
   const addRow = async (presetProps?: Record<string, unknown>) => {
-    const p = await api.createPage(collectionId, 'Untitled', 'doc', presetProps);
+    // Deliberately does NOT onNavigate() into the new row: creating an item
+    // from a collection view should keep you looking at the collection, same
+    // as Notion. Opening it is the same click as any other existing row.
+    await api.createPage(collectionId, 'Untitled', 'doc', presetProps);
     onPagesChanged();
-    onNavigate(p.id);
   };
 
   // Persist an inline change to a select/multiselect property's options (create,
