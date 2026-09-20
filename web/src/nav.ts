@@ -236,12 +236,23 @@ export function focusRegion(id: string, tries = 12): boolean {
 /** Focus one named item of a region ('body', 'title'). For the deliberate jumps
  *  that are not a step — Enter in a title going to the text it titles, or
  *  creating a page and landing in its title, which is what `tries` is for (see
- *  focusRegion: the item arrives a render and a fetch later). */
-export function focusKey(regionId: string, key: string, tries = 0): boolean {
+ *  focusRegion: the item arrives a render and a fetch later).
+ *
+ *  `guard`, checked against the region's root before the item counts as
+ *  found: a freshly created page navigates into the SAME 'content' region a
+ *  moment before React swaps its contents, so without it the retry finds the
+ *  outgoing page's title on the first try — a title, just the wrong one — and
+ *  stops there instead of waiting for the page it was actually sent to. */
+export function focusKey(
+  regionId: string,
+  key: string,
+  tries = 0,
+  guard?: (root: HTMLElement) => boolean,
+): boolean {
   const root = rootOf(regionId);
-  const el = root && itemsOf(root).find((it) => keyOf(it) === key);
+  const el = root && (!guard || guard(root)) && itemsOf(root).find((it) => keyOf(it) === key);
   if (el) return focusItem(regionId, el);
-  if (tries > 0) requestAnimationFrame(() => focusKey(regionId, key, tries - 1));
+  if (tries > 0) requestAnimationFrame(() => focusKey(regionId, key, tries - 1, guard));
   return false;
 }
 
