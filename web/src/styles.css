@@ -2042,9 +2042,20 @@ button {
 .board-col-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 4px 6px 8px;
   flex: 0 0 auto;
+}
+
+/* Chip + count stay grouped on the left; the add button sits on its own at
+   the right end of the row, pushed there by .board-col-head's
+   justify-content: space-between. */
+.board-col-head-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .board-chip {
@@ -2287,12 +2298,16 @@ button {
   order: 1;
 }
 
+/* Icon-only, sitting in .board-col-head next to the status chip — not the
+   full-width "+ New" label it used to be at the bottom of the column. */
 .board-add {
-  padding: 7px;
-  border-radius: 7px;
-  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 4px;
+  border-radius: 6px;
   color: var(--muted);
-  text-align: left;
 }
 
 .board-add:hover {
@@ -7409,12 +7424,6 @@ a,
    editing the first one silently did nothing. That is the whole reason the
    board stayed cramped: the numbers being read were not the numbers being
    changed. */
-
-/* The "New" button stays pinned to the end of the column. */
-.board-add {
-  flex: 0 0 auto;
-  margin-top: 6px;
-}
 
 /* Both lines, always — and the exception that had to go.
 
