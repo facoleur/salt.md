@@ -3186,10 +3186,17 @@ body.is-col-resizing {
    sidebar, so a ring drawn 2px OUTSIDE it is clipped on both sides and reads as
    two vertical bars. `:focus-visible`, not `:focus`: these rows carry a
    tabindex now, so a plain click focuses them too, and nobody wants a ring
-   round something they just clicked. */
+   round something they just clicked.
+
+   Same reason for a table row's title link (rows sit flush against each
+   other — an outside ring has no room top/bottom and is cut by the next row)
+   and a board card (.board-cards scrolls with overflow-y: auto, which clips
+   anything drawn outside a card near the top/bottom of that scroll). */
 
 .tree-item:focus-visible,
-.tree-db-row:focus-visible {
+.tree-db-row:focus-visible,
+.db-title-link:focus-visible,
+.board-card:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
