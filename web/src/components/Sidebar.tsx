@@ -20,7 +20,7 @@ import BlueprintLibrary from './BlueprintLibrary';
 import WorkspaceSettings from './WorkspaceSettings';
 import StrandedWorkspaces from './StrandedWorkspaces';
 import { useExclusiveModal, useMenuDismiss } from '../modal';
-import { chordFor, useShortcut } from '../keys';
+import { chordFor, hint, useShortcut } from '../keys';
 import { focusRegion, focusedKey, navItem, useNavRegion, withFocusSurvival } from '../nav';
 import { Sun, Moon, Search, Library, Plus, Table2, FileText, Trash2, LayoutTemplate, Tag, ChevronRight, ChevronDown, Users, Check, Download, Upload, Image, PanelLeftClose, PanelLeftOpen, Pencil, Star, ShieldAlert, ScrollText, Paperclip, SquareArrowOutUpRight, Copy, CornerUpRight, CornerLeftUp, Undo2, X, MoreHorizontal, Settings2 } from 'lucide-react';
 import { AgentDot } from './AgentBadge';
@@ -1282,7 +1282,7 @@ export default function Sidebar({
           {collapsed ? (
             <button
               className="icon-btn collapse-btn pin-btn"
-              title={t('Pin the sidebar')}
+              title={hint(t('Pin the sidebar'), 'sidebar.toggle')}
               onClick={() => onExpand?.()}
             >
               <PanelLeftOpen size={17} />
@@ -1290,7 +1290,7 @@ export default function Sidebar({
           ) : (
             <button
               className="icon-btn collapse-btn"
-              title={t('Collapse the sidebar')}
+              title={hint(t('Collapse the sidebar'), 'sidebar.toggle')}
               onClick={(e) => {
                 // This button lives inside the sidebar, so after the click it keeps
                 // focus and the collapsed sidebar would stay revealed via the
@@ -1306,7 +1306,11 @@ export default function Sidebar({
       </div>
       <button className="sidebar-search" onClick={onOpenSearch}>
         <span className="sidebar-item-label"><Search size={15} /> {t('Search')}</span>
-        <span className="kbd">⌘K</span>
+        {/* Was hardcoded to ⌘K, which was simply wrong everywhere search.open
+            is Ctrl+K (every non-Apple platform). Read from the registry
+            instead, the same source the shortcut sheet and every menu use, so
+            this can never say something the keyboard does not back up. */}
+        <span className="kbd">{chordFor('search.open')}</span>
       </button>
       {favPages.length > 0 && (
         <SidebarSection id="fav" label={t('Favourites')} icon={<Star size={17} />} count={favPages.length}>

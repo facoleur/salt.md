@@ -182,6 +182,22 @@ export default function App() {
     setSidebarOpen(true);
     setSidebarCollapsed(false);
   };
+  // One button for both worlds: on mobile the sidebar is a drawer, and
+  // "collapse" there simply means closed. On the desktop it becomes a hover
+  // overlay — the collapsed state applies only there, or it would linger
+  // after a phone tap as an invisible side effect. Shared by the sidebar's
+  // own button and the '[' shortcut below, so the two can't drift apart.
+  const collapseSidebar = useCallback(() => {
+    setSidebarOpen(false);
+    if (window.matchMedia('(min-width: 769px)').matches) {
+      setSidebarCollapsed(true);
+      setHoverLock(true);
+    }
+  }, []);
+  const expandSidebar = useCallback(() => {
+    setSidebarCollapsed(false);
+    setHoverLock(false);
+  }, []);
   // What is stored is the CHOICE ('auto' included); what is applied is the
   // theme derived from it. Anyone who had already stored 'light'/'dark' before
   // this change keeps it — that was a deliberate setting, not something to
@@ -426,6 +442,17 @@ export default function App() {
       if (e.key === 'Dead' || (e.key.length === 1 && e.key.toLowerCase() !== 'n')) return false;
       void createPageRef.current?.(null);
     },
+  });
+
+  // '[', to match the bracket printed on the sidebar's own collapse/pin
+  // button. Not whileTyping: '[' is an ordinary character (and the first half
+  // of a wiki-link), so this only fires when the caret isn't in a text field.
+  useShortcut({
+    id: 'sidebar.toggle',
+    keys: ['['],
+    label: () => t('Toggle sidebar'),
+    group: () => t('General'),
+    run: () => (sidebarCollapsed ? expandSidebar() : collapseSidebar()),
   });
 
   // The arrows, from outside every region: the regions bind them only once you
@@ -753,7 +780,14 @@ export default function App() {
       // Land in the title: a new page is created to be named, and from ⌥N there
       // was no pointer involved to leave anywhere useful. Across frames rather
       // than immediately — the editor mounts on a later render (see focusKey).
-      focusKey('content', 'title', 30);
+      //
+      // 30 tries (~0.5s of rAF) was tuned for "React hasn't committed yet", but
+      // this call sits behind TWO network round trips first — the create above,
+      // then Editor's own api.getPage once `navigate` swaps the current page —
+      // and `page` is null (so 'content' isn't even registered) for all of it.
+      // On anything slower than localhost that budget ran out before the page
+      // existed to focus, and the retry gave up silently.
+      focusKey('content', 'title', 180);
     },
     [navigate, currentWs],
   );
@@ -1007,22 +1041,9 @@ export default function App() {
         user={me.user}
         currentId={currentId}
         open={sidebarOpen}
-        onCollapse={() => {
-          // One button for both worlds: on mobile the sidebar is a drawer, and
-          // "collapse" there simply means closed. On the desktop it becomes a
-          // hover overlay — the collapsed state applies only there, or it would
-          // linger after a phone tap as an invisible side effect.
-          setSidebarOpen(false);
-          if (window.matchMedia('(min-width: 769px)').matches) {
-            setSidebarCollapsed(true);
-            setHoverLock(true);
-          }
-        }}
+        onCollapse={collapseSidebar}
         collapsed={sidebarCollapsed}
-        onExpand={() => {
-          setSidebarCollapsed(false);
-          setHoverLock(false);
-        }}
+        onExpand={expandSidebar}
         onNavigate={navigate}
         onOpenInNewTab={openInNewTab}
         onCreate={createPage}

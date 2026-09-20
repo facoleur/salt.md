@@ -237,6 +237,14 @@ export function chordFor(id: string): string {
   return best ? formatChord(best.chords[0] ?? '') : '';
 }
 
+/** A button's tooltip, with its live keybind appended when one is bound right
+ *  now — the same source chordFor uses for a menu row, so the two can never
+ *  disagree. */
+export function hint(label: string, id: string): string {
+  const chord = chordFor(id);
+  return chord ? `${label} (${chord})` : label;
+}
+
 /** Everything bound HERE, for the help sheet, sorted by group then label.
  *
  *  Both filters follow from the sheet's promise — "what can I press on this
