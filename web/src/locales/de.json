@@ -760,6 +760,7 @@
   "This view hit an error. Your data is safely stored.": "Die Ansicht ist auf einen Fehler gestoßen. Deine Daten sind sicher gespeichert.",
   "This workspace still has members — it can only be deleted from the inside.": "Dieser Workspace hat noch Mitglieder — er lässt sich nur von innen löschen.",
   "This workspace still has members. If nobody is in charge, appoint one of them in user management — for a look inside there is emergency access.": "Dieser Workspace hat noch Mitglieder. Fehlt ein Verantwortlicher, ernenne einen von ihnen in der Nutzerverwaltung — für bloße Einsicht gibt es den Notfallzugriff.",
+  "Tick/untick the checkbox": "Checkbox an-/abhaken",
   "Time zone": "Zeitzone",
   "Time-limited access with a stated reason — logged and shown to the people in charge": "Befristete Einsicht mit Begründung — wird protokolliert und den Verantwortlichen angezeigt",
   "Timeline": "Timeline",

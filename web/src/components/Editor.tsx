@@ -17,7 +17,8 @@ import { saltSchema } from '../pageLink';
 import IconPicker from './IconPicker';
 import { PageIcon } from '../pageIcon';
 import { BlockContext } from '../blockContext';
-import { exitsDown, exitsStart, focusKey, navItem, nothingBefore, useNavRegion } from '../nav';
+import { exitsDown, exitsStart, focusedKey, focusItem, focusKey, navItem, nothingBefore, useNavRegion } from '../nav';
+import { useShortcut } from '../keys';
 import CollectionView from './CollectionView';
 import { HistoryModal } from './PageHistory';
 import CommentsPanel, {
@@ -1452,6 +1453,29 @@ function BlockContent({
     uploadFile: (file: File) => api.upload(file, pageId),
     // Column layout: edge-drop cursor + its dictionary entries.
     dictionary: coreEn,
+  });
+
+  // Ctrl+Enter, kept literal (not `mod`) on every platform — ⌘↩ already means
+  // something to plenty of hands from other editors, and borrowing it here
+  // would fight that. Ticks whatever checklist line the cursor is CURRENTLY
+  // inside: BlockNote hands back the whole block, not the run of text under
+  // the caret, so this works from anywhere on the line. `when` limits it to
+  // the document actually holding focus — the region has exactly one item
+  // ('body') below the title — and `run` returns false on every other block
+  // type, so the chord falls through untouched everywhere else.
+  useShortcut({
+    id: 'checkbox.toggle',
+    keys: ['ctrl+enter'],
+    scope: 'editor',
+    whileTyping: true,
+    when: () => canEdit && focusedKey('content') === 'body',
+    label: () => t('Tick/untick the checkbox'),
+    group: () => t('Page'),
+    run: () => {
+      const block = editor.getTextCursorPosition().block;
+      if (block.type !== 'checkListItem') return false;
+      editor.updateBlock(block, { props: { checked: !block.props.checked } } as never);
+    },
   });
 
   const [preview, setPreview] = useState<{ name: string; url: string } | null>(null);
