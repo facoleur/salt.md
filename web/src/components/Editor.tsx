@@ -17,7 +17,8 @@ import { saltSchema } from '../pageLink';
 import IconPicker from './IconPicker';
 import { PageIcon } from '../pageIcon';
 import { BlockContext } from '../blockContext';
-import { exitsDown, exitsStart, focusItem, focusKey, navItem, nothingBefore, useNavRegion } from '../nav';
+import { exitsDown, exitsStart, focusedKey, focusItem, focusKey, navItem, nothingBefore, useNavRegion } from '../nav';
+import { useShortcut } from '../keys';
 import CollectionView from './CollectionView';
 import { HistoryModal } from './PageHistory';
 import CommentsPanel, {
@@ -1505,6 +1506,64 @@ function BlockContent({
     uploadFile: (file: File) => api.upload(file, pageId),
     // Column layout: edge-drop cursor + its dictionary entries.
     dictionary: coreEn,
+  });
+
+  // Ctrl+Enter, kept literal (not `mod`) on every platform — ⌘↩ already means
+  // something to plenty of hands from other editors, and borrowing it here
+  // would fight that. Ticks whatever checklist line the cursor is CURRENTLY
+  // inside: BlockNote hands back the whole block, not the run of text under
+  // the caret, so this works from anywhere on the line. With a range selected
+  // across several lines, getSelection() answers instead of the cursor — every
+  // checklist line it touches flips on its own, so a selection with two boxes
+  // ticked and three not does not collapse into one state, it just keeps
+  // flipping each. `when` limits it to the document actually holding focus —
+  // the region has exactly one item ('body') below the title — and `run`
+  // returns false when nothing in reach is a checklist line, so the chord
+  // falls through untouched everywhere else.
+  useShortcut({
+    id: 'checkbox.toggle',
+    keys: ['ctrl+enter'],
+    scope: 'editor',
+    whileTyping: true,
+    when: () => canEdit && focusedKey('content') === 'body',
+    label: () => t('Tick/untick the checkbox'),
+    group: () => t('Page'),
+    run: () => {
+      const selection = editor.getSelection();
+      const blocks = selection ? selection.blocks : [editor.getTextCursorPosition().block];
+      let touched = false;
+      for (const b of blocks) {
+        if (b.type !== 'checkListItem') continue;
+        editor.updateBlock(b, { props: { checked: !b.props.checked } } as never);
+        touched = true;
+      }
+      if (!touched) return false;
+    },
+  });
+
+  // Alt+↑/↓, not Mod+Shift+↑/↓ (BlockNote's own default for the same move —
+  // still there underneath, just not what anyone's hand reaches for first).
+  // moveBlocksUp/Down act on the selection when there is one and the cursor's
+  // own block otherwise, so this needs no lookup of its own.
+  useShortcut({
+    id: 'block.moveUp',
+    keys: ['alt+arrowup'],
+    scope: 'editor',
+    whileTyping: true,
+    when: () => canEdit && focusedKey('content') === 'body',
+    label: () => t('Move block up'),
+    group: () => t('Page'),
+    run: () => editor.moveBlocksUp(),
+  });
+  useShortcut({
+    id: 'block.moveDown',
+    keys: ['alt+arrowdown'],
+    scope: 'editor',
+    whileTyping: true,
+    when: () => canEdit && focusedKey('content') === 'body',
+    label: () => t('Move block down'),
+    group: () => t('Page'),
+    run: () => editor.moveBlocksDown(),
   });
 
   const [preview, setPreview] = useState<{ name: string; url: string } | null>(null);
