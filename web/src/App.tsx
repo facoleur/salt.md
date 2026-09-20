@@ -787,7 +787,12 @@ export default function App() {
       // and `page` is null (so 'content' isn't even registered) for all of it.
       // On anything slower than localhost that budget ran out before the page
       // existed to focus, and the retry gave up silently.
-      focusKey('content', 'title', 180);
+      //
+      // The guard matters just as much as the count: right after `navigate`,
+      // the OUTGOING page's Editor is still what's mounted in 'content' for at
+      // least this tick, title and all — so an unguarded retry succeeds
+      // immediately against the wrong page's title and never waits for `p`'s.
+      focusKey('content', 'title', 180, (root) => root.dataset.pageId === p.id);
     },
     [navigate, currentWs],
   );

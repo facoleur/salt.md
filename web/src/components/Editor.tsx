@@ -1062,7 +1062,7 @@ function PageHeader({
           cover, icon, title, tags and the content leave the screen together —
           only the slim topbar stays. Crucial on mobile, where a static header
           left just a tiny scrolling window. */}
-      <div className={'page-body' + (cover ? ' has-cover' : '')} ref={bodyRef}>
+      <div className={'page-body' + (cover ? ' has-cover' : '')} ref={bodyRef} data-page-id={pageId}>
       {cover && (
         <div className="page-cover" style={coverStyle(cover)}>
           <div className="page-cover-actions">
@@ -1683,10 +1683,37 @@ function BlockContent({
   };
 
   const getMentionItems = (query: string) => buildLinkItems(query);
-  // Wiki-links: the trigger is "[" (BlockNote uses single-char triggers), so the
-  // text after it starts with a second "[" when the user types "[[". We strip
-  // stray brackets ("[[Page]]") before matching.
-  const getWikiItems = (raw: string) => buildLinkItems(raw.replace(/^\[+/, '').replace(/\]+$/, ''));
+  // Wiki-links: the trigger is "[", and BlockNote has no real concept of a
+  // two-character one — passing it "[[" never fires on ordinary typing,
+  // since its match compares the WHOLE trigger string against (n trailing
+  // characters already in the doc) + (the character just typed), which is
+  // always one character too long to equal an n-character trigger.
+  //
+  // So "[[" is two separate triggers of the same one-character kind. The
+  // first opens a menu with an empty query; typing the second "[" re-matches
+  // the same trigger, and BlockNote's reaction to a trigger firing while one
+  // is already open is to close the old menu and start a completely fresh
+  // one anchored right after this new "[" — it does not extend the query
+  // with the character, so the menu's query is only ever what comes after
+  // the LAST "[" typed. Selecting an item then deletes just that: the second
+  // "[" and the query text, leaving the first "[" sitting untouched right
+  // before wherever the item's own onItemClick inserts things.
+  //
+  // Deleting it here — once, before the item does its own thing — is
+  // cheaper than fighting the plugin for a query that spans both brackets.
+  const getWikiItems = async (raw: string) => {
+    const items = await buildLinkItems(raw);
+    return items.map((item) => ({
+      ...item,
+      onItemClick: () => {
+        editor.transact((tr) => {
+          const pos = tr.selection.from;
+          if (pos > 0 && tr.doc.textBetween(pos - 1, pos) === '[') tr.delete(pos - 1, pos);
+        });
+        item.onItemClick();
+      },
+    }));
+  };
 
   // Seed initial content into an empty shared doc exactly once. If seeding
   // throws (e.g. a block shape BlockNote rejects), we must NOT enter the
