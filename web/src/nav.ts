@@ -110,9 +110,14 @@ function itemsOf(root: HTMLElement): HTMLElement[] {
 /** Where focus should actually land for an item. A document body is a nav item
  *  but not focusable — its ProseMirror surface is what takes a caret. Resolving
  *  it here is what lets the title and the body be two items of one region
- *  though two sibling components render them. */
+ *  though two sibling components render them.
+ *
+ *  `data-nav-focus="self"` opts an item OUT of that descent: a board card
+ *  carries its own editable property chips (real inputs, mounted whether or
+ *  not they are being edited), and without the escape hatch landing on the
+ *  card would silently focus the first chip instead of the card itself. */
 const focusTargetOf = (el: HTMLElement): HTMLElement =>
-  el.matches('input, textarea, [contenteditable="true"]')
+  el.dataset.navFocus === 'self' || el.matches('input, textarea, [contenteditable="true"]')
     ? el
     : (el.querySelector<HTMLElement>('[contenteditable="true"], input, textarea') ?? el);
 
@@ -525,8 +530,9 @@ export function useNavEntry(o: { labels?: { group?: () => string; prev?: () => s
  *  `keepTabOrder` where the tab order must be left alone: the element already
  *  takes focus (the title is a <textarea>), or the thing that takes the caret is
  *  a tabbable child, and a tabindex on the wrapper would add a useless stop. */
-export const navItem = (key: string, o?: { keepTabOrder?: boolean }) => ({
+export const navItem = (key: string, o?: { keepTabOrder?: boolean; focusSelf?: boolean }) => ({
   'data-nav-item': '',
   'data-nav-key': key,
+  ...(o?.focusSelf ? { 'data-nav-focus': 'self' } : {}),
   ...(o?.keepTabOrder ? {} : { tabIndex: -1 }),
 });

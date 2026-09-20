@@ -17,7 +17,7 @@ import { saltSchema } from '../pageLink';
 import IconPicker from './IconPicker';
 import { PageIcon } from '../pageIcon';
 import { BlockContext } from '../blockContext';
-import { exitsDown, exitsStart, focusKey, navItem, nothingBefore, useNavRegion } from '../nav';
+import { exitsDown, exitsStart, focusItem, focusKey, navItem, nothingBefore, useNavRegion } from '../nav';
 import CollectionView from './CollectionView';
 import { HistoryModal } from './PageHistory';
 import CommentsPanel, {
@@ -149,6 +149,7 @@ export default function Editor(props: EditorProps) {
           <CollectionView
             key={page.id}
             collectionId={page.id}
+            standalone
             pages={props.pagesById}
             tagColors={props.tagColors}
             onNavigate={props.onNavigate}
@@ -482,10 +483,38 @@ function PageHeader({
   const bodyRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
+  // A card in a board column: ↑/↓ move within a column's own DOM siblings
+  // under .board-cards, and →/← move the FOCUS — never a card's value — to a
+  // card in the neighbouring column, skipping empty ones. Pure DOM: this
+  // region is shared with a collection's Table/Board (below), which carry no
+  // state of their own up here, only navItem() on their rows/cards.
+  const focusColumnCard = (card: HTMLElement, delta: 1 | -1): boolean => {
+    const root = bodyRef.current;
+    const colEl = card.closest<HTMLElement>('.board-col');
+    if (!root || !colEl) return false;
+    const cardIndex = Array.from(card.parentElement?.children ?? []).indexOf(card);
+    const cols = Array.from(root.querySelectorAll<HTMLElement>('.board-col'));
+    for (let i = cols.indexOf(colEl) + delta; i >= 0 && i < cols.length; i += delta) {
+      const cards = Array.from(cols[i].querySelectorAll<HTMLElement>('.board-card'));
+      if (cards.length === 0) continue; // empty column: keep going the same way
+      return focusItem('content', cards[Math.min(cardIndex, cards.length - 1)]);
+    }
+    return false; // edge of the board: let the neighbouring region take it
+  };
+
   // The document as one region of two items, its title and its text — rendered
   // by two sibling components that share no state, which is exactly why this
   // belongs to nav.ts: it moves focus by document order and needs neither of
   // them to know about the other.
+  //
+  // A collection page (Table/Board, rendered by CollectionView as `children`
+  // exactly like CollabEditor is) joins the SAME region rather than one of its
+  // own: 'content' is the page's one main-content id, referenced by name from
+  // App.tsx and Sidebar.tsx, and two regions racing for it would just clobber
+  // each other's registration. Recognised by DOM shape (.board-card,
+  // .db-title-link) rather than a second id, so reaching the title back out of
+  // a board or table (↑, same as out of the document body) keeps working —
+  // there is exactly one title, however the content below it is shaped.
   //
   // whileTyping, because both items ARE text surfaces and the arrows would
   // otherwise never fire here. canLeave is what makes that survivable: the
@@ -497,6 +526,14 @@ function PageHeader({
     scope: 'editor',
     prev: 'sidebar.tree',
     whileTyping: true,
+    onExpand: (el) => {
+      const card = el.closest<HTMLElement>('.board-card');
+      return card ? focusColumnCard(card, 1) : false;
+    },
+    onCollapse: (el) => {
+      const card = el.closest<HTMLElement>('.board-card');
+      return card ? focusColumnCard(card, -1) : false;
+    },
     canLeave: (el, dir) => {
       if (el === titleRef.current) {
         const ta = titleRef.current;
@@ -514,6 +551,22 @@ function PageHeader({
         // columns and nested lists.
         return !!surface && (dir === 'up' || dir === 'left') && nothingBefore(surface);
       }
+      const card = el.closest<HTMLElement>('.board-card');
+      if (card) {
+        if (dir === 'down') return !!card.nextElementSibling;
+        if (dir === 'up') {
+          if (card.previousElementSibling) return true;
+          // Column-bound, with one deliberate exception: the very first card
+          // of the very first column also has no sibling ABOVE it, but one
+          // item before it all the same — the title. Reaching it from any
+          // other column's top card takes ← first (to column 1).
+          const colEl = card.closest('.board-col');
+          const firstCol = bodyRef.current?.querySelector('.board-col');
+          return !!colEl && colEl === firstCol;
+        }
+        return true; // left/right: onExpand/onCollapse above get first refusal
+      }
+      if (el.matches('.db-title-link')) return true; // a flat list, nothing to bound
       return false;
     },
   });

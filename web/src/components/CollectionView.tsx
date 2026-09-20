@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
+import { navItem } from '../nav';
 import { onRefresh } from '../pwa';
 import Portal from './Portal';
 import { useBoardDrag } from '../boardDrag';
@@ -100,6 +101,11 @@ interface Props {
   tagColors: Record<string, string>;
   onNavigate: (id: string) => void;
   onPagesChanged: () => void;
+  /** Set only when this IS the page (Editor.tsx) rather than a database block
+   *  embedded mid-document (blocks.tsx). Arrow-key row/card navigation only
+   *  makes sense standalone — embedded, the arrows already belong to the
+   *  surrounding text. */
+  standalone?: boolean;
 }
 
 interface Row {
@@ -216,7 +222,14 @@ function applyView(rows: Row[], view: ViewDef): Row[] {
   return out;
 }
 
-export default function CollectionView({ collectionId, pages, tagColors, onNavigate, onPagesChanged }: Props) {
+export default function CollectionView({
+  collectionId,
+  pages,
+  tagColors,
+  onNavigate,
+  onPagesChanged,
+  standalone,
+}: Props) {
   const [config, setConfig] = useState<CollectionConfig | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [viewId, setViewId] = useState<string>('');
@@ -696,6 +709,7 @@ export default function CollectionView({ collectionId, pages, tagColors, onNavig
           groupBy={view.groupBy || schema.find((p) => p.type === 'select')?.id || ''}
           tagColors={tagColors}
           commentCounts={commentCounts}
+          navEnabled={!!standalone}
           onNavigate={onNavigate}
           onSetProp={setRowProp}
           onSetOptions={setPropOptions}
@@ -755,6 +769,7 @@ export default function CollectionView({ collectionId, pages, tagColors, onNavig
           }
           colWidths={view.colWidths}
           onSetColWidths={(colWidths) => updateView({ colWidths })}
+          navEnabled={!!standalone}
           onNavigate={onNavigate}
           onSetProp={setRowProp}
           onSetOptions={setPropOptions}
@@ -1512,6 +1527,7 @@ function BoardView({
   groupBy,
   tagColors,
   commentCounts,
+  navEnabled,
   onNavigate,
   onSetProp,
   onSetOptions,
@@ -1524,6 +1540,7 @@ function BoardView({
   groupBy: string;
   tagColors: Record<string, string>;
   commentCounts: Record<string, number>;
+  navEnabled: boolean;
   onNavigate: (id: string) => void;
   onSetProp: (rowId: string, propId: string, value: unknown) => void;
   onSetOptions: (propId: string, options: PropOption[]) => void;
@@ -1643,6 +1660,13 @@ function BoardView({
                   (drag?.rowId === r.id && drag.fromCol === col.id ? ' is-dragging' : '') +
                   (armedRow === r.id ? ' is-armed' : '')
                 }
+                {...(navEnabled ? navItem(r.id, { focusSelf: true }) : {})}
+                onKeyDown={(e) => {
+                  // A card is a div, not a button: Enter opening it is not
+                  // native and has to be wired by hand, same as the table's
+                  // title link gets it for free from being a <button>.
+                  if (e.key === 'Enter') onNavigate(r.id);
+                }}
                 onPointerDown={(e) => startDrag(e, r.id, col.id, r.title || 'Untitled')}
                 onClick={() => {
                   // Do NOT open after a drag — otherwise every move jumps
@@ -1834,6 +1858,7 @@ function TableView({
   subItemProp,
   colWidths,
   onSetColWidths,
+  navEnabled,
   onNavigate,
   onSetProp,
   onSetOptions,
@@ -1845,10 +1870,17 @@ function TableView({
   subItemProp?: string;
   colWidths?: Record<string, number>;
   onSetColWidths: (next: Record<string, number>) => void;
+  navEnabled: boolean;
   onNavigate: (id: string) => void;
   onSetProp: (rowId: string, propId: string, value: unknown) => void;
   onSetOptions: (propId: string, options: PropOption[]) => void;
 }) {
+  // Row navigation: PageHeader (Editor.tsx) already owns the ONE 'content'
+  // region for the whole page — title included — and reaches into a table's
+  // rows/a board's cards by DOM shape (.db-title-link, .board-card) rather
+  // than this component registering a second, competing region under the same
+  // id. Rows only need to carry navItem() (below) so PageHeader's region can
+  // find them; standalone-only, via `navEnabled`.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   // The width being dragged right now. Kept out of the stored widths so the
   // drag is local and instant: writing to the view on every pointermove would
@@ -1997,7 +2029,11 @@ function TableView({
                       <span className="db-tree-spacer" />
                     )
                   ) : null}
-                  <button className="db-title-link" onClick={() => onNavigate(r.id)}>
+                  <button
+                    className="db-title-link"
+                    onClick={() => onNavigate(r.id)}
+                    {...(navEnabled ? navItem(r.id) : {})}
+                  >
                     {r.icon && <span className="inline-icon"><PageIcon icon={r.icon} size={14} /> </span>}
                     {r.title || 'Untitled'}
                   </button>
