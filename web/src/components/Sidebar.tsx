@@ -830,6 +830,9 @@ export default function Sidebar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [allTemplates, currentWs],
   );
+  // So the tree region's onActivate (below) can tell a template row from an
+  // ordinary one by id alone, without reaching into the DOM for it.
+  const templateIds = useMemo(() => new Set(templatePages.map((p) => p.id)), [templatePages]);
 
   const instantiateTemplate = async (id: string) => {
     try {
@@ -935,7 +938,16 @@ export default function Sidebar({
     next: 'content',
     // Enter opens the page AND follows it into the document: reaching a page
     // with the keyboard is almost always the first half of reading it.
+    //
+    // A template is the deliberate exception: its own click already does not
+    // navigate there (see the row below) — it makes a fresh page and opens
+    // THAT — so Enter has to agree, or arrowing onto one and pressing Enter
+    // would open the template itself and put someone's work inside it.
     onActivate: (_el, id) => {
+      if (templateIds.has(id)) {
+        void instantiateTemplate(id);
+        return;
+      }
       onNavigate(id);
       focusRegion('content');
     },
@@ -1449,6 +1461,9 @@ export default function Sidebar({
               <div
                 key={p.id}
                 className={'tree-item sb-flat' + (p.id === currentId ? ' active' : '')}
+                // A step for the arrow keys, same as every tree row — Enter is
+                // special-cased for this id in onActivate above.
+                {...navItem(p.id)}
                 /* Clicking a template USES it: it makes a page from the template and
                    opens THAT. It used to open the template itself, which is what every
                    other row in this sidebar does and therefore the obvious thing to try
